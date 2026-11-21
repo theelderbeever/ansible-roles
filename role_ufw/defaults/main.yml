@@ -1,0 +1,22 @@
+---
+# Turn the firewall on once rules are in place.
+ufw_enable: true
+
+ufw_default_incoming_policy: deny
+ufw_default_outgoing_policy: allow
+# "routed" covers forwarded traffic, which includes traffic to Docker
+# containers once role_docker's ufw integration is in place.
+ufw_default_routed_policy: deny
+
+ufw_logging: low
+
+# Always allow SSH before enabling so a run can't lock you out.
+ufw_allow_ssh: true
+ufw_ssh_port: "22"
+ufw_ssh_from: any
+
+# Extra rules; keys map to community.general.ufw options, e.g.
+#   - { port: "8080", proto: tcp, from_ip: 192.168.1.0/24, comment: something }
+#   - { interface: eth1, direction: in, comment: trusted nic }
+#   - { route: true, port: "80", proto: tcp, comment: container port }
+ufw_rules: []

@@ -1,0 +1,110 @@
+---
+- name: Create node_exporter group
+  ansible.builtin.group:
+    name: "{{ node_exporter_group }}"
+    system: true
+
+- name: Create node_exporter user
+  ansible.builtin.user:
+    name: "{{ node_exporter_user }}"
+    group: "{{ node_exporter_group }}"
+    system: true
+    shell: /usr/sbin/nologin
+    home: /nonexistent
+    create_home: false
+
+# Put the drop-in in place before the package's first start.
+- name: Create node_exporter drop-in directory
+  ansible.builtin.file:
+    path: /etc/systemd/system/prometheus-node-exporter.service.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Run node_exporter as its own user
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/prometheus-node-exporter.service.d/user.conf
+    content: |
+      # Managed by Ansible
+      [Service]
+      User={{ node_exporter_user }}
+      Group={{ node_exporter_group }}
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart node_exporter
+
+# An upstream-tarball install (node_exporter.service/.socket in
+# /etc/systemd/system) would keep holding :9100 and the package's
+# prometheus-node-exporter.service would fail to bind.
+- name: Check for a manually installed node_exporter
+  ansible.builtin.stat:
+    path: "/etc/systemd/system/{{ item }}"
+  loop: "{{ node_exporter_manual_units }}"
+  register: _node_exporter_manual_units
+
+- name: Migrate away from the manual install
+  when:
+    - node_exporter_remove_manual_install
+    - _node_exporter_manual_units.results | selectattr('stat.exists') | list | length > 0
+  block:
+    - name: Stop and disable the manual units
+      ansible.builtin.systemd_service:
+        name: "{{ item.item }}"
+        state: stopped
+        enabled: false
+      loop: "{{ _node_exporter_manual_units.results | selectattr('stat.exists') | list }}"
+      loop_control:
+        label: "{{ item.item }}"
+
+    - name: Remove the manual unit files
+      ansible.builtin.file:
+        path: "{{ item.stat.path }}"
+        state: absent
+      loop: "{{ _node_exporter_manual_units.results | selectattr('stat.exists') | list }}"
+      loop_control:
+        label: "{{ item.stat.path }}"
+
+    - name: Reload systemd
+      ansible.builtin.systemd_service:
+        daemon_reload: true
+
+- name: Install node_exporter
+  ansible.builtin.apt:
+    name: "{{ node_exporter_package }}"
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Configure node_exporter service arguments
+  ansible.builtin.template:
+    src: node-exporter.default.j2
+    dest: /etc/default/prometheus-node-exporter
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart node_exporter
+
+- name: Enable and start node_exporter
+  ansible.builtin.service:
+    name: prometheus-node-exporter
+    state: started
+    enabled: true
+
+- name: Open node_exporter port in ufw
+  when: node_exporter_manage_ufw and node_exporter_ufw_allow_from | length > 0
+  block:
+    - name: Install ufw
+      ansible.builtin.apt:
+        name: ufw
+        state: present
+
+    - name: Allow node_exporter through ufw
+      community.general.ufw:
+        rule: allow
+        port: "{{ node_exporter_listen_address.split(':') | last }}"
+        proto: tcp
+        from_ip: "{{ item }}"
+        comment: node_exporter
+      loop: "{{ node_exporter_ufw_allow_from }}"

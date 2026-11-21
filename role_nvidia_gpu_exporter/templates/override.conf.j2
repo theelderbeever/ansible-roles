@@ -1,0 +1,13 @@
+{{ ansible_managed | comment }}
+[Service]
+ExecStart=
+ExecStart=/usr/bin/nvidia_gpu_exporter {{ (['--web.listen-address=' ~ nvidia_gpu_exporter_listen_address, '--collect.backend=' ~ nvidia_gpu_exporter_backend] + nvidia_gpu_exporter_extra_args) | join(' ') }}
+{% if nvidia_gpu_exporter_strict_sandbox %}
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+{% endif %}

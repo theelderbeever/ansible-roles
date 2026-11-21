@@ -1,0 +1,13 @@
+---
+# Network-wide values, visible to every host.
+# Secrets live in vault.yml next to this file (copy vault.yml.example and
+# ansible-vault encrypt it).
+
+ansible_user: taylor
+
+base_domain: beeverdam.com
+lan_cidr: 192.168.1.0/24
+
+# Address other hosts (e.g. Prometheus on core) use to reach this host.
+# Override in host_vars if it differs from ansible_host.
+scrape_address: "{{ ansible_host | default(inventory_hostname) }}"

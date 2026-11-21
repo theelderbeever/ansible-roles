@@ -1,0 +1,36 @@
+---
+# grafana (OSS) or grafana-enterprise
+grafana_package: grafana
+
+grafana_http_addr: ""
+grafana_http_port: 3000
+grafana_domain: localhost
+# Set to the public URL when behind Traefik, e.g. https://grafana.example.com/
+grafana_root_url: "%(protocol)s://%(domain)s:%(http_port)s/"
+
+# Only takes effect on the very first start (before grafana.db exists). The
+# Grafana deb doesn't auto-start, so setting this on a fresh host works.
+# Afterwards: sudo grafana cli admin reset-admin-password <pw>
+grafana_admin_user: admin
+grafana_admin_password: ""
+
+# Extra grafana.ini settings, merged over the role's settings:
+#   grafana_ini:
+#     analytics:
+#       reporting_enabled: false
+grafana_ini: {}
+
+grafana_prometheus_url: http://localhost:9090
+grafana_datasources:
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: "{{ grafana_prometheus_url }}"
+    isDefault: true
+    editable: true
+
+# Add this role's ufw rules (installs ufw if missing, never enables it; that's
+# role_ufw's job). Set the shared manage_ufw: false to skip ufw everywhere.
+grafana_manage_ufw: "{{ manage_ufw | default(true) | bool }}"
+# Sources allowed through ufw to the Grafana port. Empty = local/Traefik only.
+grafana_ufw_allow_from: []

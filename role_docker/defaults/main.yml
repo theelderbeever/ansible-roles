@@ -1,0 +1,62 @@
+---
+# Override if Docker hasn't published packages for a brand-new Ubuntu release
+# yet (e.g. fall back to the previous LTS codename "noble").
+docker_apt_release: "{{ ansible_facts['distribution_release'] }}"
+docker_apt_arch: "{{ _docker_arch_map[ansible_facts['architecture']] | default(ansible_facts['architecture']) }}"
+
+docker_packages:
+  - docker-ce
+  - docker-ce-cli
+  - containerd.io
+  - docker-buildx-plugin
+  - docker-compose-plugin
+
+# Distro packages that conflict with Docker CE.
+docker_conflicting_packages:
+  - docker.io
+  - docker-compose
+  - docker-compose-v2
+  - docker-doc
+  - podman-docker
+  - containerd
+  - runc
+
+docker_users: []
+
+# Rendered as /etc/docker/daemon.json. Don't set "iptables": false; the ufw
+# integration below relies on Docker managing its chains normally.
+docker_daemon_options:
+  log-driver: json-file
+  log-opts:
+    max-size: 10m
+    max-file: "3"
+
+# --- ufw integration ---------------------------------------------------------
+# Docker publishes ports with DNAT + FORWARD rules that are evaluated before
+# ufw's INPUT chain, so `-p 8080:80` is reachable even when ufw denies 8080.
+# Docker always consults the DOCKER-USER chain first; hooking it into ufw's
+# forward chain means published ports require an explicit
+#   ufw route allow proto tcp from any to any port <container_port>
+# (or an entry in docker_ufw_route_rules) to be reachable.
+# Defaults to the shared manage_ufw switch used by every role.
+docker_ufw_integration: "{{ manage_ufw | default(true) | bool }}"
+
+# Sources allowed to open NEW connections to anything (bypassing ufw). Keep
+# this to Docker's own address pools so containers can reach the LAN/internet.
+# Adding your LAN range (e.g. 192.168.0.0/16) lets every LAN host reach every
+# published container port without a ufw rule.
+docker_ufw_trusted_source_networks:
+  - 172.16.0.0/12
+
+# Destinations (container networks) where NEW connections from untrusted
+# sources are dropped unless a ufw route rule allows them.
+docker_ufw_protected_networks:
+  - 10.0.0.0/8
+  - 172.16.0.0/12
+  - 192.168.0.0/16
+
+# ufw "route" rules for published container ports. Use the *container* port
+# (traffic is matched after Docker's DNAT).
+#   - { port: "80", proto: tcp, comment: whoami }
+#   - { port: "8080", proto: tcp, from_ip: 192.168.1.0/24 }
+docker_ufw_route_rules: []

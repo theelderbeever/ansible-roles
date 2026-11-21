@@ -1,0 +1,36 @@
+---
+# https://github.com/utkuozdemir/nvidia_gpu_exporter
+#
+# PREREQUISITE: the NVIDIA driver (and nvidia-smi / libnvidia-ml.so.1) must
+# already be installed and working on the host. This role does not manage
+# drivers; it fails early if `nvidia-smi -L` doesn't succeed.
+
+# Pin to a release (e.g. "2.0.0") for reproducible runs. "latest" resolves via
+# the GitHub API on each run and upgrades when a new release appears.
+nvidia_gpu_exporter_version: latest
+nvidia_gpu_exporter_arch: "{{ _nvidia_gpu_exporter_arch_map[ansible_facts['architecture']] | default(ansible_facts['architecture']) }}"
+nvidia_gpu_exporter_download_dir: /var/cache/nvidia-gpu-exporter
+
+# Fail early unless the NVIDIA driver is present and nvidia-smi works.
+nvidia_gpu_exporter_preflight: true
+
+# Migrate a manual (non-package) install: delete
+# /etc/systemd/system/nvidia_gpu_exporter.service so the package's unit and
+# this role's drop-in take effect. Set false if you maintain that file yourself.
+nvidia_gpu_exporter_remove_manual_unit: true
+
+nvidia_gpu_exporter_listen_address: ":9835"
+# nvml (default; reads libnvidia-ml in-process) or exec (runs nvidia-smi).
+nvidia_gpu_exporter_backend: nvml
+# Any other flags, e.g. ["--query-field-names-exclude=remapped_rows.*"]
+nvidia_gpu_exporter_extra_args: []
+
+# Upstream's stricter sandbox. Safe when not using a sudo/ssh wrapper for
+# nvidia-smi and /dev/nvidia* exist at boot (nvidia-persistenced or udev).
+nvidia_gpu_exporter_strict_sandbox: false
+
+# Add this role's ufw rules (installs ufw if missing, never enables it; that's
+# role_ufw's job). Set the shared manage_ufw: false to skip ufw everywhere.
+nvidia_gpu_exporter_manage_ufw: "{{ manage_ufw | default(true) | bool }}"
+# Sources allowed through ufw to :9835, e.g. the Prometheus host or your LAN.
+nvidia_gpu_exporter_ufw_allow_from: []

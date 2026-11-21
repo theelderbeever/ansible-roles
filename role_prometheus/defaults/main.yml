@@ -1,0 +1,37 @@
+---
+# Ubuntu's archive packages (matches the original manual install).
+prometheus_packages:
+  - prometheus
+
+prometheus_web_listen_address: "0.0.0.0:9090"
+# Set when served behind Traefik, e.g. https://prometheus.example.com/
+prometheus_web_external_url: ""
+prometheus_storage_retention_time: 30d
+prometheus_extra_args: []
+
+prometheus_global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    monitor: homelab
+
+# Alertmanager targets, e.g. [localhost:9093]. Empty disables alerting.
+prometheus_alertmanager_targets: []
+prometheus_rule_files: []
+
+# Also install node_exporter (via role_node_exporter; all node_exporter_*
+# variables apply) so the Prometheus host reports its own metrics.
+prometheus_install_node_exporter: true
+
+prometheus_self_target: localhost:9090
+prometheus_node_targets:
+  - localhost:9100
+
+# Additional raw scrape_configs entries appended after the built-in jobs.
+prometheus_scrape_configs: []
+
+# Add this role's ufw rules (installs ufw if missing, never enables it; that's
+# role_ufw's job). Set the shared manage_ufw: false to skip ufw everywhere.
+prometheus_manage_ufw: "{{ manage_ufw | default(true) | bool }}"
+# Sources allowed through ufw to :9090. Empty = local/Traefik only.
+prometheus_ufw_allow_from: []

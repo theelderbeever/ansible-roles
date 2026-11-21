@@ -1,0 +1,103 @@
+---
+- name: Look up the latest nvidia_gpu_exporter release
+  ansible.builtin.uri:
+    url: https://api.github.com/repos/utkuozdemir/nvidia_gpu_exporter/releases/latest
+    headers:
+      Accept: application/vnd.github+json
+    return_content: true
+  register: _nvidia_gpu_exporter_latest
+  when: nvidia_gpu_exporter_version == 'latest'
+  check_mode: false
+
+- name: Set release facts
+  ansible.builtin.set_fact:
+    _nvidia_gpu_exporter_version: "{{ _v }}"
+    _nvidia_gpu_exporter_deb: "nvidia-gpu-exporter_{{ _v }}_linux_{{ nvidia_gpu_exporter_arch }}.deb"
+    _nvidia_gpu_exporter_base_url: "https://github.com/utkuozdemir/nvidia_gpu_exporter/releases/download/v{{ _v }}"
+  vars:
+    _tag: >-
+      {{ _nvidia_gpu_exporter_latest.json.tag_name
+         if nvidia_gpu_exporter_version == 'latest'
+         else nvidia_gpu_exporter_version }}
+    _v: "{{ _tag | regex_replace('^v', '') }}"
+
+# The package creates this user too; doing it first keeps it a proper
+# nologin system account and makes ownership deterministic.
+- name: Create nvidia_gpu_exporter user
+  ansible.builtin.user:
+    name: "{{ _nvidia_gpu_exporter_user }}"
+    system: true
+    shell: /usr/sbin/nologin
+    create_home: false
+
+# Upstream configures the exporter with flags only and its unit has no
+# EnvironmentFile, so override ExecStart. Written before the package's
+# postinst starts the service for the first time.
+- name: Create systemd drop-in directory
+  ansible.builtin.file:
+    path: "/etc/systemd/system/{{ _nvidia_gpu_exporter_service }}.service.d"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Configure exporter flags
+  ansible.builtin.template:
+    src: override.conf.j2
+    dest: "/etc/systemd/system/{{ _nvidia_gpu_exporter_service }}.service.d/ansible.conf"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart nvidia_gpu_exporter
+
+- name: Create download directory
+  ansible.builtin.file:
+    path: "{{ nvidia_gpu_exporter_download_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Download the nvidia_gpu_exporter package
+  ansible.builtin.get_url:
+    url: "{{ _nvidia_gpu_exporter_base_url }}/{{ _nvidia_gpu_exporter_deb }}"
+    dest: "{{ nvidia_gpu_exporter_download_dir }}/{{ _nvidia_gpu_exporter_deb }}"
+    checksum: "sha256:{{ _nvidia_gpu_exporter_base_url }}/checksums.txt"
+    owner: root
+    group: root
+    mode: "0644"
+
+# A unit from the upstream "systemd service without the package" install
+# lives in /etc/systemd/system and would shadow the package's unit in
+# /usr/lib/systemd/system. The binary in /usr/bin is replaced by the package.
+- name: Check for a manually installed unit file
+  ansible.builtin.stat:
+    path: "/etc/systemd/system/{{ _nvidia_gpu_exporter_service }}.service"
+  register: _nvidia_gpu_exporter_manual_unit
+
+- name: Migrate away from the manual unit
+  when:
+    - nvidia_gpu_exporter_remove_manual_unit
+    - _nvidia_gpu_exporter_manual_unit.stat.exists
+  block:
+    # Disable first so its multi-user.target.wants symlink is removed;
+    # otherwise the package's `systemctl enable` trips over a dangling link.
+    - name: Disable the manually installed unit
+      ansible.builtin.systemd_service:
+        name: "{{ _nvidia_gpu_exporter_service }}"
+        enabled: false
+
+    - name: Remove the manually installed unit file
+      ansible.builtin.file:
+        path: "/etc/systemd/system/{{ _nvidia_gpu_exporter_service }}.service"
+        state: absent
+      notify: Restart nvidia_gpu_exporter
+
+    - name: Reload systemd
+      ansible.builtin.systemd_service:
+        daemon_reload: true
+
+- name: Install the nvidia_gpu_exporter package
+  ansible.builtin.apt:
+    deb: "{{ nvidia_gpu_exporter_download_dir }}/{{ _nvidia_gpu_exporter_deb }}"
+    state: present

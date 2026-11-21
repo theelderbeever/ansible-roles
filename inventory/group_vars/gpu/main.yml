@@ -1,0 +1,4 @@
+---
+# Hosts with an NVIDIA GPU, scraped by Prometheus on core over the LAN.
+nvidia_gpu_exporter_ufw_allow_from:
+  - "{{ lan_cidr }}"

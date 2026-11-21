@@ -1,0 +1,42 @@
+---
+# Account pihole-FTL runs as. Not configurable: the installer, the upstream
+# unit (User=pihole) and the prestart script all hard-code it.
+_pihole_user: pihole
+_pihole_group: pihole
+
+_pihole_ftl_config_base:
+  dns.upstreams: "{{ pihole_dns_upstreams }}"
+  dns.interface: "{{ pihole_interface }}"
+  dns.listeningMode: "{{ pihole_listening_mode }}"
+  dns.queryLogging: "{{ pihole_query_logging }}"
+  dns.cache.optimizer: -1
+  dns.rateLimit.count: 10000
+  webserver.port: "{{ pihole_web_port }}"
+  webserver.domain: "{{ pihole_web_domain }}"
+  webserver.interface.theme: "{{ pihole_web_theme }}"
+
+# Three cases: auth off -> explicit '' (Pi-hole's documented "no password");
+# password given -> set it; otherwise leave the installer's random one alone.
+_pihole_ftl_config_password: >-
+  {{ {'webserver.api.password': ''} if not (pihole_web_auth | bool)
+     else ({'webserver.api.password': pihole_web_password} if pihole_web_password | length > 0 else {}) }}
+
+_pihole_ftl_config: "{{ _pihole_ftl_config_base | combine(_pihole_ftl_config_password, pihole_ftl_config) }}"
+
+_pihole_adlist_types:
+  block: 0
+  allow: 1
+
+_pihole_domainlist_types:
+  exact_allow: 0
+  exact_deny: 1
+  regex_allow: 2
+  regex_deny: 3
+
+_pihole_gravity_db: /etc/pihole/gravity.db
+
+# Kept outside /etc/pihole: pihole-FTL-prestart.sh runs
+# `chown -R pihole:pihole /etc/pihole` on every start, which would hand the
+# secret-bearing env file to the pihole user and cause drift on every run.
+# systemd reads it as root before dropping to the pihole user.
+_pihole_ftl_env_file: /etc/default/pihole-FTL

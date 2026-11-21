@@ -1,0 +1,67 @@
+---
+# Pin to a release (e.g. "3.6.2") for reproducible runs. "latest" resolves via
+# the GitHub API on each run and upgrades when a new release appears.
+traefik_version: latest
+traefik_arch: "{{ _traefik_arch_map[ansible_facts['architecture']] | default(ansible_facts['architecture']) }}"
+traefik_install_dir: /opt/traefik
+traefik_binary: /usr/local/bin/traefik
+
+traefik_user: traefik
+traefik_group: traefik
+traefik_config_dir: /etc/traefik
+# Writable state (acme.json). Created by systemd StateDirectory=, owned by
+# traefik_user; the config dir stays root-owned and read-only to Traefik.
+traefik_state_dir: /var/lib/traefik
+
+traefik_log_level: INFO
+traefik_check_new_version: true
+
+traefik_domain: example.com
+
+# --- ACME / Let's Encrypt (DNS challenge) -----------------------------------
+traefik_cert_resolver: letsencrypt
+traefik_acme_email: ""
+traefik_acme_staging: false
+# Any lego provider: https://doc.traefik.io/traefik/https/acme/#providers
+traefik_dns_provider: cloudflare
+traefik_dns_resolvers:
+  - 1.1.1.1:53
+  - 8.8.8.8:53
+traefik_dns_delay_before_check: 10
+# Request a single *.domain cert instead of one cert per host. Keeps hostnames
+# out of public certificate transparency logs.
+traefik_wildcard_cert: true
+
+# Environment for the service, mainly DNS provider credentials (vault these):
+#   traefik_env:
+#     CF_DNS_API_TOKEN: "{{ vault_cloudflare_dns_api_token }}"
+traefik_env: {}
+
+# --- dashboard ---------------------------------------------------------------
+traefik_dashboard_enabled: true
+traefik_dashboard_host: "traefik.{{ traefik_domain }}"
+# Exposes the API/dashboard unauthenticated on :8080. Prefer the router above.
+traefik_api_insecure: false
+# htpasswd-style entries ("user:$apr1$..."); empty = no auth on the dashboard.
+# Generate with: htpasswd -nB admin
+traefik_dashboard_basic_auth_users: []
+
+# --- routes ------------------------------------------------------------------
+# Each route becomes a router + service in the file provider. Optional keys:
+# middlewares (list), pass_host_header (bool).
+traefik_routes:
+  - name: pihole
+    host: "pihole.{{ traefik_domain }}"
+    url: http://localhost:18080
+  - name: grafana
+    host: "grafana.{{ traefik_domain }}"
+    url: http://localhost:3000
+  - name: prometheus
+    host: "prometheus.{{ traefik_domain }}"
+    url: http://localhost:9090
+
+# Add this role's ufw rules (installs ufw if missing, never enables it; that's
+# role_ufw's job). Set the shared manage_ufw: false to skip ufw everywhere.
+traefik_manage_ufw: "{{ manage_ufw | default(true) | bool }}"
+traefik_ufw_allow_from:
+  - any

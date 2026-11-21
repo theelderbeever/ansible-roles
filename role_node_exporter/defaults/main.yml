@@ -1,0 +1,28 @@
+---
+# Prometheus node_exporter from the Ubuntu archive. Usable on any host,
+# with or without role_prometheus.
+node_exporter_package: prometheus-node-exporter
+
+# Ubuntu's unit runs node_exporter as the "prometheus" user (shared with the
+# Prometheus server, which owns the TSDB). A systemd drop-in moves it to its
+# own unprivileged account.
+node_exporter_user: node-exporter
+node_exporter_group: node-exporter
+
+# Migrate a manual upstream-tarball install: stop, disable and delete these
+# units from /etc/systemd/system so the package can bind :9100. The old
+# binary (/usr/bin/node_exporter) and its user are left in place.
+node_exporter_remove_manual_install: true
+node_exporter_manual_units:
+  - node_exporter.socket
+  - node_exporter.service
+
+node_exporter_listen_address: ":9100"
+node_exporter_extra_args: []
+
+# Add this role's ufw rules (installs ufw if missing, never enables it; that's
+# role_ufw's job). Set the shared manage_ufw: false to skip ufw everywhere.
+node_exporter_manage_ufw: "{{ manage_ufw | default(true) | bool }}"
+# Sources allowed through ufw to :9100, e.g. the Prometheus host or your LAN.
+# Empty = only reachable locally (fine when Prometheus runs on the same host).
+node_exporter_ufw_allow_from: []

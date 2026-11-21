@@ -1,0 +1,47 @@
+{{ ansible_managed | comment }}
+
+[global]
+  checkNewVersion = {{ traefik_check_new_version | lower }}
+  sendAnonymousUsage = false
+
+[log]
+  level = "{{ traefik_log_level }}"
+
+[api]
+  dashboard = {{ traefik_dashboard_enabled | lower }}
+  insecure = {{ traefik_api_insecure | lower }}
+
+[entryPoints]
+  [entryPoints.web]
+    address = ":80"
+    [entryPoints.web.http.redirections.entryPoint]
+      to = "websecure"
+      scheme = "https"
+
+  [entryPoints.websecure]
+    address = ":443"
+    [entryPoints.websecure.http.tls]
+      certResolver = "{{ traefik_cert_resolver }}"
+{% if traefik_wildcard_cert %}
+      [[entryPoints.websecure.http.tls.domains]]
+        main = "{{ traefik_domain }}"
+        sans = ["*.{{ traefik_domain }}"]
+{% endif %}
+
+[providers]
+  [providers.file]
+    filename = "{{ traefik_config_dir }}/dynamic_conf.toml"
+    watch = true
+
+[certificatesResolvers]
+  [certificatesResolvers.{{ traefik_cert_resolver }}.acme]
+    email = "{{ traefik_acme_email }}"
+    storage = "{{ traefik_state_dir }}/acme.json"
+{% if traefik_acme_staging %}
+    caServer = "https://acme-staging-v02.api.letsencrypt.org/directory"
+{% endif %}
+    [certificatesResolvers.{{ traefik_cert_resolver }}.acme.dnsChallenge]
+      provider = "{{ traefik_dns_provider }}"
+      resolvers = {{ traefik_dns_resolvers | to_json }}
+      [certificatesResolvers.{{ traefik_cert_resolver }}.acme.dnsChallenge.propagation]
+        delayBeforeChecks = "{{ traefik_dns_delay_before_check }}s"

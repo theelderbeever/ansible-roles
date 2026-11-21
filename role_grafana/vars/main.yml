@@ -1,0 +1,13 @@
+---
+_grafana_ini_base:
+  server:
+    http_addr: "{{ grafana_http_addr }}"
+    http_port: "{{ grafana_http_port }}"
+    domain: "{{ grafana_domain }}"
+    root_url: "{{ grafana_root_url }}"
+  security:
+    admin_user: "{{ grafana_admin_user }}"
+
+_grafana_ini_password: "{{ {'security': {'admin_password': grafana_admin_password}} if grafana_admin_password | length > 0 else {} }}"
+
+_grafana_ini: "{{ _grafana_ini_base | combine(_grafana_ini_password, grafana_ini, recursive=true) }}"

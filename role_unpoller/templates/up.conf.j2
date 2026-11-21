@@ -1,0 +1,48 @@
+{{ ansible_managed | comment }}
+# Reference: /etc/unpoller/up.conf.example
+{% macro toml(value) -%}
+{%-   if value is boolean -%}{{ value | lower }}
+{%-   elif value is number -%}{{ value }}
+{%-   else -%}{{ value | to_json }}
+{%-   endif -%}
+{%- endmacro %}
+
+[poller]
+  debug = {{ toml(unpoller_debug) }}
+  quiet = {{ toml(unpoller_quiet) }}
+  plugins = []
+
+[prometheus]
+  disable = false
+  http_listen = {{ toml(unpoller_prometheus_http_listen) }}
+  report_errors = {{ toml(unpoller_prometheus_report_errors) }}
+  dead_ports = {{ toml(unpoller_prometheus_dead_ports) }}
+  interval = {{ toml(unpoller_prometheus_interval) }}
+
+# Only the Prometheus output is used; the package enables InfluxDB by default.
+[influxdb]
+  disable = true
+
+[loki]
+  disable = true
+
+[datadog]
+  enable = false
+
+[webserver]
+  enable = false
+
+[unifi]
+  dynamic = false
+
+[unifi.defaults]
+{% for key, value in unpoller_unifi_defaults | dictsort %}
+  {{ key }} = {{ toml(value) }}
+{% endfor %}
+{% for controller in unpoller_controllers %}
+
+[[unifi.controller]]
+{%   for key, value in controller | dictsort %}
+  {{ key }} = {{ toml(value) }}
+{%   endfor %}
+{% endfor %}

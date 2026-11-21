@@ -1,0 +1,29 @@
+---
+# Based on https://github.com/chaifeng/ufw-docker: route Docker's DOCKER-USER
+# chain through ufw so published ports obey ufw "route" rules.
+- name: Install ufw
+  ansible.builtin.apt:
+    name: ufw
+    state: present
+
+- name: Hook DOCKER-USER into ufw (/etc/ufw/after.rules)
+  ansible.builtin.blockinfile:
+    path: /etc/ufw/after.rules
+    marker: "# {mark} ANSIBLE MANAGED: UFW AND DOCKER"
+    block: "{{ lookup('ansible.builtin.template', 'ufw-after.rules.j2') }}"
+    insertafter: EOF
+    backup: true
+  notify: Reload ufw
+
+- name: Allow routed traffic to published container ports
+  community.general.ufw:
+    rule: "{{ item.rule | default('allow') }}"
+    route: true
+    port: "{{ item.port }}"
+    proto: "{{ item.proto | default('tcp') }}"
+    from_ip: "{{ item.from_ip | default('any') }}"
+    to_ip: "{{ item.to_ip | default('any') }}"
+    comment: "{{ item.comment | default(omit) }}"
+  loop: "{{ docker_ufw_route_rules }}"
+  loop_control:
+    label: "{{ item.port }}/{{ item.proto | default('tcp') }}"

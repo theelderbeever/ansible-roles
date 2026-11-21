@@ -1,0 +1,5 @@
+---
+# Satellite devices: node_exporter, scraped by Prometheus on core over the LAN.
+# ufw isn't enabled on edge hosts unless you also apply role_ufw to them.
+node_exporter_ufw_allow_from:
+  - "{{ lan_cidr }}"

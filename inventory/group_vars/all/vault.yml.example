@@ -1,0 +1,7 @@
+---
+# cp vault.yml.example vault.yml && ansible-vault encrypt vault.yml
+vault_cloudflare_dns_api_token: changeme
+vault_tailscale_authkey: tskey-auth-changeme
+vault_grafana_admin_password: changeme
+vault_pihole_web_password: changeme
+vault_unpoller_api_key: changeme

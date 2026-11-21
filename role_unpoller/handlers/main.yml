@@ -1,0 +1,5 @@
+---
+- name: Restart unpoller
+  ansible.builtin.service:
+    name: unpoller
+    state: restarted

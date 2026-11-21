@@ -1,0 +1,9 @@
+{{ ansible_managed | comment }}
+{% set args = ['--web.listen-address=' ~ prometheus_web_listen_address] %}
+{% if prometheus_storage_retention_time %}
+{%   set _ = args.append('--storage.tsdb.retention.time=' ~ prometheus_storage_retention_time) %}
+{% endif %}
+{% if prometheus_web_external_url %}
+{%   set _ = args.append('--web.external-url=' ~ prometheus_web_external_url) %}
+{% endif %}
+ARGS="{{ (args + prometheus_extra_args) | join(' ') }}"

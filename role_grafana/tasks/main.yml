@@ -1,0 +1,68 @@
+---
+- name: Install repository prerequisites
+  ansible.builtin.apt:
+    name:
+      - ca-certificates
+      - python3-debian
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Add Grafana apt repository
+  ansible.builtin.deb822_repository:
+    name: grafana
+    types: deb
+    uris: https://apt.grafana.com
+    suites: stable
+    components: main
+    signed_by: https://apt.grafana.com/gpg.key
+  register: _grafana_repo
+
+- name: Install Grafana
+  ansible.builtin.apt:
+    name: "{{ grafana_package }}"
+    state: present
+    update_cache: "{{ _grafana_repo is changed }}"
+
+- name: Configure Grafana
+  ansible.builtin.template:
+    src: grafana.ini.j2
+    dest: /etc/grafana/grafana.ini
+    owner: root
+    group: grafana
+    mode: "0640"
+    backup: true
+  diff: false  # may contain admin_password
+  notify: Restart grafana
+
+- name: Provision datasources
+  ansible.builtin.template:
+    src: datasources.yml.j2
+    dest: /etc/grafana/provisioning/datasources/ansible.yml
+    owner: root
+    group: grafana
+    mode: "0640"
+  notify: Restart grafana
+
+- name: Enable and start Grafana
+  ansible.builtin.service:
+    name: grafana-server
+    state: started
+    enabled: true
+
+- name: Open Grafana port in ufw
+  when: grafana_manage_ufw and grafana_ufw_allow_from | length > 0
+  block:
+    - name: Install ufw
+      ansible.builtin.apt:
+        name: ufw
+        state: present
+
+    - name: Allow Grafana through ufw
+      community.general.ufw:
+        rule: allow
+        port: "{{ grafana_http_port | string }}"
+        proto: tcp
+        from_ip: "{{ item }}"
+        comment: grafana
+      loop: "{{ grafana_ufw_allow_from }}"

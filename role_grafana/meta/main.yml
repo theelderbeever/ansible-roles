@@ -1,0 +1,11 @@
+---
+galaxy_info:
+  role_name: grafana
+  author: theelderbeever
+  description: Grafana from apt.grafana.com with a provisioned Prometheus datasource
+  license: MIT
+  min_ansible_version: "2.15"
+  platforms:
+    - name: Ubuntu
+      versions: [all]
+dependencies: []

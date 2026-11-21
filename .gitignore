@@ -1,0 +1,6 @@
+# Snapshots of manually configured hosts. Contains private keys (acme.json,
+# tls.pem), the pihole CLI password and large databases. Do not commit.
+references/
+
+*.retry
+.vault_pass*

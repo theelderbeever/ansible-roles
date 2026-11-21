@@ -1,0 +1,11 @@
+---
+galaxy_info:
+  role_name: node_exporter
+  author: theelderbeever
+  description: Prometheus node_exporter from the Ubuntu archive, running as its own user
+  license: MIT
+  min_ansible_version: "2.15"
+  platforms:
+    - name: Ubuntu
+      versions: [all]
+dependencies: []

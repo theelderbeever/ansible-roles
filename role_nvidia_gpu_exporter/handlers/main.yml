@@ -1,0 +1,6 @@
+---
+- name: Restart nvidia_gpu_exporter
+  ansible.builtin.systemd_service:
+    name: "{{ _nvidia_gpu_exporter_service }}"
+    state: restarted
+    daemon_reload: true

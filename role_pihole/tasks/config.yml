@@ -1,0 +1,40 @@
+---
+# FTL reads FTLCONF_<section>_<key> env vars and they take precedence over
+# pihole.toml. This keeps the config declarative instead of fighting FTL,
+# which rewrites pihole.toml itself.
+- name: Write FTL environment file
+  ansible.builtin.template:
+    src: ftl.env.j2
+    dest: "{{ _pihole_ftl_env_file }}"
+    owner: root
+    group: root
+    mode: "0600"
+  diff: false  # may contain the web password
+  notify: Restart pihole-FTL
+
+- name: Create pihole-FTL drop-in directory
+  ansible.builtin.file:
+    path: /etc/systemd/system/pihole-FTL.service.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Load FTL environment file in pihole-FTL.service
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/pihole-FTL.service.d/ansible.conf
+    content: |
+      # Managed by Ansible
+      [Service]
+      EnvironmentFile={{ _pihole_ftl_env_file }}
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart pihole-FTL
+
+- name: Enable and start pihole-FTL
+  ansible.builtin.systemd_service:
+    name: pihole-FTL
+    state: started
+    enabled: true
+    daemon_reload: true

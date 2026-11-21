@@ -1,0 +1,37 @@
+---
+- name: Configure core
+  hosts: core
+  become: true
+  roles:
+    # Firewall first so every later role can add its rules and SSH stays open.
+    - role: role_ufw
+      tags: [ufw]
+    - role: role_docker
+      tags: [docker]
+    - role: role_tailscale
+      tags: [tailscale]
+    - role: role_prometheus
+      tags: [prometheus]
+    - role: role_unpoller
+      tags: [unpoller]
+    - role: role_grafana
+      tags: [grafana]
+    # Pi-hole before Traefik so the Pi-hole web server is moved off :80 first.
+    - role: role_pihole
+      tags: [pihole]
+    - role: role_traefik
+      tags: [traefik]
+
+- name: Configure edge devices
+  hosts: edge
+  become: true
+  roles:
+    - role: role_node_exporter
+      tags: [node_exporter]
+
+- name: Install the NVIDIA GPU exporter on GPU hosts
+  hosts: gpu
+  become: true
+  roles:
+    - role: role_nvidia_gpu_exporter
+      tags: [nvidia_gpu_exporter]

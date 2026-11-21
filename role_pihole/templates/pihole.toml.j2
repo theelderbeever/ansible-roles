@@ -1,0 +1,10 @@
+# Seeded by Ansible for the unattended install. FTL rewrites this file and
+# fills in defaults; ongoing settings come from /etc/default/pihole-FTL.
+[dns]
+  upstreams = {{ pihole_dns_upstreams | to_json }}
+  interface = {{ pihole_interface | to_json }}
+  listeningMode = {{ pihole_listening_mode | to_json }}
+
+[webserver]
+  domain = {{ pihole_web_domain | to_json }}
+  port = {{ pihole_web_port | to_json }}

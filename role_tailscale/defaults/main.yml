@@ -1,0 +1,20 @@
+---
+tailscale_apt_release: "{{ ansible_facts['distribution_release'] }}"
+
+# Auth key from https://login.tailscale.com/admin/settings/keys (vault it).
+# If empty, the role installs tailscaled and you run `sudo tailscale up` once.
+tailscale_authkey: ""
+
+# Flags for the initial `tailscale up`, e.g.
+#   [--ssh, --accept-dns=false, --advertise-routes=192.168.1.0/24]
+# Only applied when the node isn't logged in yet. To change flags on a running
+# node use `tailscale set ...` (or `tailscale up --reset ...`).
+tailscale_up_args: []
+
+# Add this role's ufw rules (installs ufw if missing, never enables it; that's
+# role_ufw's job). Set the shared manage_ufw: false to skip ufw everywhere.
+tailscale_manage_ufw: "{{ manage_ufw | default(true) | bool }}"
+# Allow everything arriving on tailscale0 through ufw. Access is then governed
+# by your tailnet ACLs instead.
+tailscale_ufw_allow_interface: true
+tailscale_interface: tailscale0

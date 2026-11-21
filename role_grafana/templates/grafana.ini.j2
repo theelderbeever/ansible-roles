@@ -1,0 +1,13 @@
+{{ ansible_managed | comment(decoration='; ') }}
+; Only overrides live here; defaults come from /usr/share/grafana/conf/defaults.ini
+{% for section, options in _grafana_ini.items() %}
+
+[{{ section }}]
+{%   for key, value in options.items() %}
+{%     if value is boolean %}
+{{ key }} = {{ value | lower }}
+{%     else %}
+{{ key }} = {{ value }}
+{%     endif %}
+{%   endfor %}
+{% endfor %}

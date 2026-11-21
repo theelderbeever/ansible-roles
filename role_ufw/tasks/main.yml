@@ -1,0 +1,51 @@
+---
+- name: Install ufw
+  ansible.builtin.apt:
+    name: ufw
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Allow SSH
+  community.general.ufw:
+    rule: allow
+    port: "{{ ufw_ssh_port }}"
+    proto: tcp
+    from_ip: "{{ ufw_ssh_from }}"
+    comment: ssh
+  when: ufw_allow_ssh
+
+- name: Apply extra rules
+  community.general.ufw:
+    rule: "{{ item.rule | default('allow') }}"
+    port: "{{ item.port | default(omit) }}"
+    proto: "{{ item.proto | default(omit) }}"
+    from_ip: "{{ item.from_ip | default(omit) }}"
+    to_ip: "{{ item.to_ip | default(omit) }}"
+    interface: "{{ item.interface | default(omit) }}"
+    direction: "{{ item.direction | default(omit) }}"
+    route: "{{ item.route | default(omit) }}"
+    comment: "{{ item.comment | default(omit) }}"
+  loop: "{{ ufw_rules }}"
+  loop_control:
+    label: "{{ item.comment | default(item.port | default(item.interface | default('rule'))) }}"
+
+- name: Set default policies
+  community.general.ufw:
+    default: "{{ item.policy }}"
+    direction: "{{ item.direction }}"
+  loop:
+    - { direction: incoming, policy: "{{ ufw_default_incoming_policy }}" }
+    - { direction: outgoing, policy: "{{ ufw_default_outgoing_policy }}" }
+    - { direction: routed, policy: "{{ ufw_default_routed_policy }}" }
+  loop_control:
+    label: "{{ item.direction }}={{ item.policy }}"
+
+- name: Set logging level
+  community.general.ufw:
+    logging: "{{ ufw_logging }}"
+
+- name: Enable ufw
+  community.general.ufw:
+    state: enabled
+  when: ufw_enable

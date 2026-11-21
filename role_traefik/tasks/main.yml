@@ -1,0 +1,98 @@
+---
+- name: Validate required settings
+  ansible.builtin.assert:
+    that:
+      - traefik_acme_email | length > 0
+      - traefik_acme_email is not search('@example\\.(com|org|net)$')
+      - traefik_state_dir is match('^/var/lib/[^/]+')
+    fail_msg: >-
+      traefik_acme_email must be set to a real address for Let's Encrypt, and traefik_state_dir
+      must live under /var/lib (it is managed by systemd StateDirectory=).
+
+- name: Install Traefik binary
+  ansible.builtin.import_tasks: install.yml
+
+- name: Create traefik group
+  ansible.builtin.group:
+    name: "{{ traefik_group }}"
+    system: true
+
+- name: Create traefik user
+  ansible.builtin.user:
+    name: "{{ traefik_user }}"
+    group: "{{ traefik_group }}"
+    system: true
+    shell: /usr/sbin/nologin
+    home: "{{ traefik_state_dir }}"
+    create_home: false
+
+- name: Create config directory
+  ansible.builtin.file:
+    path: "{{ traefik_config_dir }}"
+    state: directory
+    owner: root
+    group: "{{ traefik_group }}"
+    mode: "0750"
+
+- name: Write static configuration
+  ansible.builtin.template:
+    src: traefik.toml.j2
+    dest: "{{ traefik_config_dir }}/traefik.toml"
+    owner: root
+    group: "{{ traefik_group }}"
+    mode: "0640"
+  notify: Restart traefik
+
+# The file provider watches this file, so route changes need no restart.
+- name: Write dynamic configuration
+  ansible.builtin.template:
+    src: dynamic_conf.toml.j2
+    dest: "{{ traefik_config_dir }}/dynamic_conf.toml"
+    owner: root
+    group: "{{ traefik_group }}"
+    mode: "0640"
+
+- name: Write service environment file
+  ansible.builtin.template:
+    src: traefik.env.j2
+    dest: "{{ traefik_config_dir }}/traefik.env"
+    owner: root
+    group: root
+    mode: "0600"
+  no_log: true
+  notify: Restart traefik
+
+- name: Install systemd unit
+  ansible.builtin.template:
+    src: traefik.service.j2
+    dest: /etc/systemd/system/traefik.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart traefik
+
+- name: Enable and start Traefik
+  ansible.builtin.systemd_service:
+    name: traefik
+    state: started
+    enabled: true
+    daemon_reload: true
+
+- name: Open Traefik ports in ufw
+  when: traefik_manage_ufw and traefik_ufw_allow_from | length > 0
+  block:
+    - name: Install ufw
+      ansible.builtin.apt:
+        name: ufw
+        state: present
+
+    - name: Allow HTTP/HTTPS through ufw
+      community.general.ufw:
+        rule: allow
+        port: "{{ item.1 }}"
+        proto: tcp
+        from_ip: "{{ item.0 }}"
+        comment: traefik
+      loop: "{{ traefik_ufw_allow_from | product(['80', '443']) | list }}"
+      loop_control:
+        label: "{{ item.0 }} {{ item.1 }}/tcp"

@@ -1,0 +1,57 @@
+---
+pihole_installer_url: https://install.pi-hole.net
+
+# Set true if the installer doesn't recognise a brand-new Ubuntu release yet.
+pihole_skip_os_check: false
+
+# Ubuntu's systemd-resolved stub listener holds 127.0.0.53:53, which collides
+# with pihole-FTL's dnsmasq. Disable the stub and point /etc/resolv.conf at
+# resolved's real upstream list.
+pihole_disable_resolved_stub: true
+
+# --- core settings (mirrored from the original host) ------------------------
+pihole_dns_upstreams:
+  - 8.8.8.8
+  - 8.8.4.4
+pihole_interface: "{{ ansible_facts['default_ipv4']['interface'] }}"
+# LOCAL | SINGLE | BIND | ALL | NONE. ALL lets tailnet/VPN clients query too.
+pihole_listening_mode: ALL
+pihole_query_logging: false
+# Web UI/API stays off :80/:443 so Traefik can own them. "o" = optional bind.
+pihole_web_port: "18080o,[::]:18080o"
+pihole_web_domain: pi.hole
+pihole_web_theme: default-darker
+# Web UI password (vault it). Empty leaves whatever the installer generated;
+# reset it with `sudo pihole setpassword`.
+pihole_web_password: ""
+# false = no login at all (pushes an explicit empty password; overrides
+# pihole_web_password). Anyone who can reach the UI can change settings.
+pihole_web_auth: true
+
+# Any other pihole.toml settings as dotted keys, merged over the above, e.g.
+#   dns.hosts: ["192.168.1.10 nas.lan"]
+#   dns.cnameRecords: ["grafana.lan,beeverdam-n0.lan"]
+# NOTE: settings passed as FTLCONF_* env vars become read-only in the web UI.
+pihole_ftl_config: {}
+
+# --- gravity -----------------------------------------------------------------
+# Subscribed lists. enabled defaults to true; type is block (default) or allow.
+pihole_adlists:
+  - address: https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts
+    comment: StevenBlack
+
+# Domain allow/deny entries.
+# type: exact_allow | exact_deny | regex_allow | regex_deny
+#   - { domain: '(\.|^)example\.com$', type: regex_deny, comment: why }
+pihole_domainlist: []
+
+# Add this role's ufw rules (installs ufw if missing, never enables it; that's
+# role_ufw's job). Set the shared manage_ufw: false to skip ufw everywhere.
+pihole_manage_ufw: "{{ manage_ufw | default(true) | bool }}"
+# Sources allowed through ufw to DNS (53/tcp+udp).
+pihole_ufw_allow_dns_from:
+  - any
+
+# Sources allowed through ufw to the web UI port. Leave empty when Traefik
+# fronts it on the same host; set e.g. [192.168.1.0/24] when running standalone.
+pihole_ufw_allow_web_from: []

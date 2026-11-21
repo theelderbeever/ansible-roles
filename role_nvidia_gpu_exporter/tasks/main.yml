@@ -1,0 +1,46 @@
+---
+- name: Check for a working NVIDIA driver
+  when: nvidia_gpu_exporter_preflight
+  block:
+    - name: Run nvidia-smi
+      ansible.builtin.command: nvidia-smi -L
+      register: _nvidia_smi
+      changed_when: false
+      failed_when: false
+      check_mode: false
+
+    - name: Require the NVIDIA driver
+      ansible.builtin.assert:
+        that: _nvidia_smi.rc == 0
+        fail_msg: >-
+          `nvidia-smi -L` failed (rc={{ _nvidia_smi.rc }}): {{ _nvidia_smi.stderr | default(_nvidia_smi.msg | default('')) }}.
+          The NVIDIA driver and nvidia-smi must be installed before this role
+          runs; they are intentionally not managed by Ansible here.
+        success_msg: "{{ _nvidia_smi.stdout_lines | default([]) | join('; ') }}"
+
+- name: Install nvidia_gpu_exporter
+  ansible.builtin.import_tasks: install.yml
+
+- name: Enable and start nvidia_gpu_exporter
+  ansible.builtin.systemd_service:
+    name: "{{ _nvidia_gpu_exporter_service }}"
+    state: started
+    enabled: true
+    daemon_reload: true
+
+- name: Open nvidia_gpu_exporter port in ufw
+  when: nvidia_gpu_exporter_manage_ufw and nvidia_gpu_exporter_ufw_allow_from | length > 0
+  block:
+    - name: Install ufw
+      ansible.builtin.apt:
+        name: ufw
+        state: present
+
+    - name: Allow nvidia_gpu_exporter through ufw
+      community.general.ufw:
+        rule: allow
+        port: "{{ nvidia_gpu_exporter_listen_address.split(':') | last }}"
+        proto: tcp
+        from_ip: "{{ item }}"
+        comment: nvidia_gpu_exporter
+      loop: "{{ nvidia_gpu_exporter_ufw_allow_from }}"

@@ -1,0 +1,67 @@
+---
+- name: Install installer prerequisites
+  ansible.builtin.apt:
+    name:
+      - curl
+      - ca-certificates
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Check for an existing Pi-hole install
+  ansible.builtin.stat:
+    path: /usr/local/bin/pihole
+  register: _pihole_bin
+
+# pihole-FTL.service runs as this account. The installer reuses it if it
+# already exists; creating it here (same flags as the installer) lets the
+# seeded config be owned correctly from the start.
+- name: Create pihole group
+  ansible.builtin.group:
+    name: "{{ _pihole_group }}"
+    system: true
+
+- name: Create pihole user
+  ansible.builtin.user:
+    name: "{{ _pihole_user }}"
+    group: "{{ _pihole_group }}"
+    system: true
+    shell: /usr/sbin/nologin
+    create_home: false
+
+- name: Prepare unattended install
+  when: not _pihole_bin.stat.exists
+  block:
+    - name: Create /etc/pihole
+      ansible.builtin.file:
+        path: /etc/pihole
+        state: directory
+        owner: "{{ _pihole_user }}"
+        group: "{{ _pihole_group }}"
+        mode: "0755"
+
+    # The v6 installer needs an existing pihole.toml to run --unattended.
+    # Seeding it also keeps the web server off :80 from the first start.
+    - name: Seed pihole.toml
+      ansible.builtin.template:
+        src: pihole.toml.j2
+        dest: /etc/pihole/pihole.toml
+        owner: "{{ _pihole_user }}"
+        group: "{{ _pihole_group }}"
+        mode: "0640"
+        force: false
+
+    - name: Download the Pi-hole installer
+      ansible.builtin.get_url:
+        url: "{{ pihole_installer_url }}"
+        dest: /root/pihole-basic-install.sh
+        owner: root
+        group: root
+        mode: "0700"
+
+    - name: Run the Pi-hole installer
+      ansible.builtin.command:
+        argv: [bash, /root/pihole-basic-install.sh, --unattended]
+        creates: /usr/local/bin/pihole
+      environment:
+        PIHOLE_SKIP_OS_CHECK: "{{ pihole_skip_os_check | string | lower }}"

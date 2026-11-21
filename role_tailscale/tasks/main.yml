@@ -1,0 +1,74 @@
+---
+- name: Install repository prerequisites
+  ansible.builtin.apt:
+    name:
+      - ca-certificates
+      - python3-debian
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Add Tailscale apt repository
+  ansible.builtin.deb822_repository:
+    name: tailscale
+    types: deb
+    uris: https://pkgs.tailscale.com/stable/ubuntu
+    suites: "{{ tailscale_apt_release }}"
+    components: main
+    signed_by: "https://pkgs.tailscale.com/stable/ubuntu/{{ tailscale_apt_release }}.noarmor.gpg"
+  register: _tailscale_repo
+
+- name: Install Tailscale
+  ansible.builtin.apt:
+    name: tailscale
+    state: present
+    update_cache: "{{ _tailscale_repo is changed }}"
+
+- name: Enable and start tailscaled
+  ansible.builtin.service:
+    name: tailscaled
+    state: started
+    enabled: true
+
+- name: Get Tailscale status
+  ansible.builtin.command: tailscale status --json
+  register: _tailscale_status
+  changed_when: false
+  failed_when: false
+
+- name: Determine backend state
+  ansible.builtin.set_fact:
+    _tailscale_backend_state: "{{ (_tailscale_status.stdout | from_json).BackendState | default('Unknown') if _tailscale_status.rc == 0 else 'Unknown' }}"
+
+- name: Bring Tailscale up
+  ansible.builtin.command:
+    argv: "{{ ['tailscale', 'up', '--auth-key=' ~ tailscale_authkey] + tailscale_up_args }}"
+  when:
+    - _tailscale_backend_state != 'Running'
+    - tailscale_authkey | length > 0
+  changed_when: true
+  no_log: true
+
+- name: Remind to authenticate manually
+  ansible.builtin.debug:
+    msg: >-
+      Tailscale is installed but not logged in (state={{ _tailscale_backend_state }}).
+      Set tailscale_authkey or run: sudo tailscale up {{ tailscale_up_args | join(' ') }}
+  when:
+    - _tailscale_backend_state != 'Running'
+    - tailscale_authkey | length == 0
+
+- name: Trust the tailnet in ufw
+  when: tailscale_manage_ufw and tailscale_ufw_allow_interface
+  block:
+    - name: Install ufw
+      ansible.builtin.apt:
+        name: ufw
+        state: present
+
+    - name: Allow traffic from the tailnet through ufw
+      community.general.ufw:
+        rule: allow
+        direction: in
+        interface: "{{ tailscale_interface }}"
+        comment: tailscale

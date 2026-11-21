@@ -1,0 +1,46 @@
+{{ ansible_managed | comment }}
+
+[http]
+  [http.routers]
+{% for route in traefik_routes %}
+    [http.routers.{{ route.name }}]
+      rule = "Host(`{{ route.host }}`)"
+      entryPoints = ["websecure"]
+      service = "{{ route.name }}"
+{%   if route.middlewares | default([]) %}
+      middlewares = {{ route.middlewares | to_json }}
+{%   endif %}
+      [http.routers.{{ route.name }}.tls]
+{%   if not traefik_wildcard_cert %}
+        certResolver = "{{ traefik_cert_resolver }}"
+{%   endif %}
+
+{% endfor %}
+{% if traefik_dashboard_enabled %}
+    [http.routers.dashboard]
+      rule = "Host(`{{ traefik_dashboard_host }}`)"
+      entryPoints = ["websecure"]
+      service = "api@internal"
+{%   if traefik_dashboard_basic_auth_users %}
+      middlewares = ["dashboard-auth"]
+{%   endif %}
+      [http.routers.dashboard.tls]
+{%   if not traefik_wildcard_cert %}
+        certResolver = "{{ traefik_cert_resolver }}"
+{%   endif %}
+
+{% endif %}
+{% if traefik_dashboard_enabled and traefik_dashboard_basic_auth_users %}
+  [http.middlewares]
+    [http.middlewares.dashboard-auth.basicAuth]
+      users = {{ traefik_dashboard_basic_auth_users | to_json }}
+
+{% endif %}
+  [http.services]
+{% for route in traefik_routes %}
+    [http.services.{{ route.name }}.loadBalancer]
+      passHostHeader = {{ route.pass_host_header | default(true) | lower }}
+      [[http.services.{{ route.name }}.loadBalancer.servers]]
+        url = "{{ route.url }}"
+
+{% endfor %}

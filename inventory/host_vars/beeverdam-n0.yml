@@ -1,0 +1,12 @@
+---
+# Facts about this specific machine.
+# ansible_host: 192.168.1.x   # set if the name doesn't resolve
+
+# Pi-hole binds to this NIC (from the original pihole.toml).
+pihole_interface: enp86s0
+
+docker_users:
+  - taylor
+
+traefik_acme_email: taybeever@gmail.com
+pihole_web_auth: false

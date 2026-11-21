@@ -1,0 +1,50 @@
+---
+# Upsert directly into gravity.db via FTL's bundled sqlite3 shell. Each
+# statement prints changes() so we only report "changed" when a row moved.
+- name: Ensure adlists
+  ansible.builtin.command:
+    argv:
+      - pihole-FTL
+      - sqlite3
+      - "{{ _pihole_gravity_db }}"
+      - >-
+        INSERT INTO adlist (address, type, enabled, comment)
+        VALUES ('{{ item.address | replace("'", "''") }}',
+                {{ _pihole_adlist_types[item.type | default('block')] }},
+                {{ 1 if item.enabled | default(true) else 0 }},
+                {{ "'" ~ (item.comment | replace("'", "''")) ~ "'" if item.comment is defined else 'NULL' }})
+        ON CONFLICT(address, type) DO UPDATE SET
+          enabled = excluded.enabled, comment = excluded.comment
+        WHERE adlist.enabled IS NOT excluded.enabled
+           OR adlist.comment IS NOT excluded.comment;
+        SELECT changes();
+  loop: "{{ pihole_adlists }}"
+  loop_control:
+    label: "{{ item.address }}"
+  register: _pihole_adlist_result
+  changed_when: _pihole_adlist_result.stdout | trim != '0'
+  notify: Update gravity
+
+- name: Ensure domain list entries
+  ansible.builtin.command:
+    argv:
+      - pihole-FTL
+      - sqlite3
+      - "{{ _pihole_gravity_db }}"
+      - >-
+        INSERT INTO domainlist (type, domain, enabled, comment)
+        VALUES ({{ _pihole_domainlist_types[item.type | default('exact_deny')] }},
+                '{{ item.domain | replace("'", "''") }}',
+                {{ 1 if item.enabled | default(true) else 0 }},
+                {{ "'" ~ (item.comment | replace("'", "''")) ~ "'" if item.comment is defined else 'NULL' }})
+        ON CONFLICT(domain, type) DO UPDATE SET
+          enabled = excluded.enabled, comment = excluded.comment
+        WHERE domainlist.enabled IS NOT excluded.enabled
+           OR domainlist.comment IS NOT excluded.comment;
+        SELECT changes();
+  loop: "{{ pihole_domainlist }}"
+  loop_control:
+    label: "{{ item.type | default('exact_deny') }} {{ item.domain }}"
+  register: _pihole_domainlist_result
+  changed_when: _pihole_domainlist_result.stdout | trim != '0'
+  notify: Reload pihole lists

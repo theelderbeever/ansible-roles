@@ -1,0 +1,60 @@
+---
+# The Ubuntu package Recommends prometheus-node-exporter; skip the implicit
+# install and use role_node_exporter below so it is configured the same way
+# (own user, args) here as on satellite hosts.
+- name: Install Prometheus
+  ansible.builtin.apt:
+    name: "{{ prometheus_packages }}"
+    state: present
+    install_recommends: false
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Configure Prometheus service arguments
+  ansible.builtin.template:
+    src: prometheus.default.j2
+    dest: /etc/default/prometheus
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart prometheus
+
+- name: Configure Prometheus
+  ansible.builtin.template:
+    src: prometheus.yml.j2
+    dest: /etc/prometheus/prometheus.yml
+    owner: root
+    group: prometheus
+    mode: "0640"
+    validate: promtool check config %s
+  notify: Reload prometheus
+
+- name: Enable and start Prometheus
+  ansible.builtin.service:
+    name: prometheus
+    state: started
+    enabled: true
+
+- name: Open Prometheus port in ufw
+  when: prometheus_manage_ufw and prometheus_ufw_allow_from | length > 0
+  block:
+    - name: Install ufw
+      ansible.builtin.apt:
+        name: ufw
+        state: present
+
+    - name: Allow Prometheus through ufw
+      community.general.ufw:
+        rule: allow
+        port: "{{ prometheus_web_listen_address.split(':') | last }}"
+        proto: tcp
+        from_ip: "{{ item }}"
+        comment: prometheus
+      loop: "{{ prometheus_ufw_allow_from }}"
+
+# import (static), not include, so `--tags prometheus` reaches its tasks.
+- name: Install node_exporter on the Prometheus host
+  ansible.builtin.import_role:
+    name: role_node_exporter
+  when: prometheus_install_node_exporter
+  tags: [node_exporter]

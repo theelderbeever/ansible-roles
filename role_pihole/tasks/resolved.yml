@@ -1,0 +1,35 @@
+---
+- name: Create resolved drop-in directory
+  ansible.builtin.file:
+    path: /etc/systemd/resolved.conf.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Disable the systemd-resolved stub listener
+  ansible.builtin.copy:
+    dest: /etc/systemd/resolved.conf.d/pihole.conf
+    content: |
+      # Managed by Ansible: pihole-FTL binds port 53.
+      [Resolve]
+      DNSStubListener=no
+    owner: root
+    group: root
+    mode: "0644"
+  register: _pihole_resolved_conf
+
+- name: Point /etc/resolv.conf at resolved's upstream list
+  ansible.builtin.file:
+    src: /run/systemd/resolve/resolv.conf
+    dest: /etc/resolv.conf
+    state: link
+    force: true
+  register: _pihole_resolv_link
+
+# Restart now (not via handler) so port 53 is free before the installer runs.
+- name: Restart systemd-resolved
+  ansible.builtin.service:
+    name: systemd-resolved
+    state: restarted
+  when: _pihole_resolved_conf is changed or _pihole_resolv_link is changed

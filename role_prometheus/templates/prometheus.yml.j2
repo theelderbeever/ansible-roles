@@ -1,0 +1,16 @@
+{{ ansible_managed | comment }}
+{% set scrape_configs = [
+  {'job_name': 'prometheus', 'static_configs': [{'targets': [prometheus_self_target]}]},
+] %}
+{% if prometheus_node_targets %}
+{%   set _ = scrape_configs.append({'job_name': 'node', 'static_configs': [{'targets': prometheus_node_targets}]}) %}
+{% endif %}
+{% set config = {'global': prometheus_global} %}
+{% if prometheus_alertmanager_targets %}
+{%   set _ = config.update({'alerting': {'alertmanagers': [{'static_configs': [{'targets': prometheus_alertmanager_targets}]}]}}) %}
+{% endif %}
+{% if prometheus_rule_files %}
+{%   set _ = config.update({'rule_files': prometheus_rule_files}) %}
+{% endif %}
+{% set _ = config.update({'scrape_configs': scrape_configs + prometheus_scrape_configs}) %}
+{{ config | to_nice_yaml(indent=2, sort_keys=False) }}

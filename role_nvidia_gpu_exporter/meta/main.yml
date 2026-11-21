@@ -1,0 +1,11 @@
+---
+galaxy_info:
+  role_name: nvidia_gpu_exporter
+  author: theelderbeever
+  description: utkuozdemir/nvidia_gpu_exporter from upstream release packages (NVIDIA driver must be pre-installed)
+  license: MIT
+  min_ansible_version: "2.15"
+  platforms:
+    - name: Ubuntu
+      versions: [all]
+dependencies: []

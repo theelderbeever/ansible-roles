@@ -1,0 +1,54 @@
+---
+# UnPoller (https://unpoller.com) polls UniFi controllers and exports metrics
+# for Prometheus on :9130.
+
+# golift publishes static builds to a single "focal" suite used for every
+# Debian/Ubuntu release (this is what https://golift.io/repo.sh configures).
+unpoller_apt_uri: https://packagecloud.io/golift/pkgs/ubuntu
+unpoller_apt_suite: focal
+unpoller_apt_key_url: https://packagecloud.io/golift/pkgs/gpgkey
+unpoller_package: unpoller
+
+unpoller_debug: false
+# Only log startup and errors, not every poll interval.
+unpoller_quiet: true
+
+# --- prometheus output -------------------------------------------------------
+unpoller_prometheus_http_listen: "0.0.0.0:9130"
+# How often UnPoller refreshes its cache; "0s" polls the controller on every
+# scrape. Separate from Prometheus' own scrape_interval.
+unpoller_prometheus_interval: 60s
+unpoller_prometheus_report_errors: false
+# Also record disabled/unlinked switch ports.
+unpoller_prometheus_dead_ports: false
+
+# Add this role's ufw rules (installs ufw if missing, never enables it; that's
+# role_ufw's job). Set the shared manage_ufw: false to skip ufw everywhere.
+unpoller_manage_ufw: "{{ manage_ufw | default(true) | bool }}"
+# Sources allowed through ufw to :9130 (e.g. a remote Prometheus).
+# Empty = scraped locally only.
+unpoller_ufw_allow_from: []
+
+# --- unifi -------------------------------------------------------------------
+# Settings applied to every controller unless the controller overrides them.
+# Any [unifi.defaults] key from up.conf.example works here.
+unpoller_unifi_defaults:
+  sites: [all]
+  save_sites: true
+  save_dpi: false
+  save_speedtest: true
+  hash_pii: false
+  verify_ssl: false
+
+# One entry per controller. Authenticate with either user + pass (a local
+# read-only "Limited Admin" account) or api_key (UniFi OS consoles that can
+# generate local API keys). For UniFi OS consoles (UDM, UDM Pro, UXG, Cloud Key
+# Gen2+) do NOT add :8443 to the URL; classic controllers still need it.
+#   unpoller_controllers:
+#     - url: https://192.168.1.1
+#       api_key: "{{ vault_unpoller_api_key }}"
+#     - url: https://unifi.lan:8443
+#       user: unifipoller
+#       pass: "{{ vault_unpoller_pass }}"
+#       sites: [default]
+unpoller_controllers: []

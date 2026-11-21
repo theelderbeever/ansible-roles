@@ -1,0 +1,74 @@
+---
+- name: Validate controller definitions
+  ansible.builtin.assert:
+    that:
+      - unpoller_controllers | length > 0
+      - unpoller_controllers | rejectattr('url', 'defined') | list | length == 0
+      - >-
+        unpoller_controllers
+        | rejectattr('api_key', 'defined')
+        | rejectattr('pass', 'defined')
+        | list | length == 0
+    fail_msg: >-
+      Define at least one entry in unpoller_controllers, each with a url and
+      either api_key or user/pass.
+    quiet: true
+
+- name: Install repository prerequisites
+  ansible.builtin.apt:
+    name:
+      - ca-certificates
+      - python3-debian
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Add golift apt repository
+  ansible.builtin.deb822_repository:
+    name: golift
+    types: deb
+    uris: "{{ unpoller_apt_uri }}"
+    suites: "{{ unpoller_apt_suite }}"
+    components: main
+    signed_by: "{{ unpoller_apt_key_url }}"
+  register: _unpoller_repo
+
+# The package creates the "unpoller" system user and runs the service as it.
+- name: Install UnPoller
+  ansible.builtin.apt:
+    name: "{{ unpoller_package }}"
+    state: present
+    update_cache: "{{ _unpoller_repo is changed }}"
+
+- name: Configure UnPoller
+  ansible.builtin.template:
+    src: up.conf.j2
+    dest: /etc/unpoller/up.conf
+    owner: root
+    group: unpoller
+    mode: "0640"
+  diff: false  # contains controller credentials
+  notify: Restart unpoller
+
+- name: Enable and start UnPoller
+  ansible.builtin.service:
+    name: unpoller
+    state: started
+    enabled: true
+
+- name: Open UnPoller port in ufw
+  when: unpoller_manage_ufw and unpoller_ufw_allow_from | length > 0
+  block:
+    - name: Install ufw
+      ansible.builtin.apt:
+        name: ufw
+        state: present
+
+    - name: Allow UnPoller metrics through ufw
+      community.general.ufw:
+        rule: allow
+        port: "{{ unpoller_prometheus_http_listen.split(':') | last }}"
+        proto: tcp
+        from_ip: "{{ item }}"
+        comment: unpoller
+      loop: "{{ unpoller_ufw_allow_from }}"
